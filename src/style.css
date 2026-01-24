@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons+Round');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons+Outlined');
+@import "tailwindcss";
+
+/* 依照你的 code.html 精確定義主題 */
+@theme {
+  --color-background-light: var(--color-background-light);
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+}
+:root {
+  --color-primary: #3b82f6;
+  --color-secondary: #2dd4bf;
+  --color-primary-dark: #2563eb;
+  --color-background-light: #f3f4f6;
+  --color-background-dark: #111827;
+  --color-surface-light: #ffffff;
+  --color-surface-dark: #1f2937;
+  
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+}
+
+@layer base {
+  body {
+    font-family: 'Noto Sans TC';
+    @apply transition-colors duration-300;
+  }
+}
+
+@layer components {
+  /* 100% 復刻你的漸層 */
+  .gradient-bg {
+    background: linear-gradient(135deg, #2dd4bf 0%, #3b82f6 100%) !important;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #2dd4bf 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+  }
+
+  /* 復刻輸入框樣式與 Focus 效果 */
+  .suda-input {
+    @apply block w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 bg-gray-50 
+           text-gray-900 transition-all duration-200 outline-none;
+    /* 這裡模擬你 HTML 中的 focus:ring-primary */
+  }
+  
+  .suda-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+  }
+}
