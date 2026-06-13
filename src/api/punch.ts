@@ -1,6 +1,7 @@
 // src/api/punch.ts
 import api from './client';
-import type { ApiResponse, Employee, PaginationMeta } from './employee';
+import type { Employee, PaginationMeta } from './employee';
+import type { ApiResponse } from './client';
 
 export interface PunchRecord {
   id: string;

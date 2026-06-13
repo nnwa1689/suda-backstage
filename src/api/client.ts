@@ -1,6 +1,14 @@
 // src/api/client.ts
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 
+// 對應你提供的 API 回覆結構
+export interface ApiResponse<T> {
+  statusCode: number;
+  success: boolean;
+  message: string;
+  data: T;
+}
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://your-api-domain.com',
   headers: {
