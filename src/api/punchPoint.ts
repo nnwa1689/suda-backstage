@@ -1,7 +1,7 @@
 import api from './client';
 import type { ApiResponse } from './client';
 
-export type PunchVerifyType = 'GPS' | 'WIFI' | 'WFH';
+export type PunchVerifyType = 'GPS' | 'WIFI' | 'WFH' | 'Bluetooth';
 
 // 打卡點 (對應 punch_points)，numeric 欄位由後端以字串回傳
 export interface PunchPoint {
@@ -28,7 +28,12 @@ export interface CreatePunchPointPayload {
   verifyType: PunchVerifyType;
   wifiSsid?: string;
   wifiBssidList?: string[];
+  bluetoothServiceUuid?: string; // 空字串表示清除
 }
+
+// 藍牙 Service UUID：4 碼、8 碼或標準 UUID (iOS 以 CBUUID 解析，格式錯誤會閃退)
+export const BLUETOOTH_UUID_PATTERN =
+  /^[0-9A-Fa-f]{4}$|^[0-9A-Fa-f]{8}$|^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/;
 
 export type UpdatePunchPointPayload = Partial<Omit<CreatePunchPointPayload, 'id'>>;
 

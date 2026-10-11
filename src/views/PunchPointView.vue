@@ -5,6 +5,7 @@ import {
   createPunchPointApi,
   updatePunchPointApi,
   togglePunchPointApi,
+  BLUETOOTH_UUID_PATTERN,
   type PunchPoint,
   type PunchVerifyType
 } from '../api/punchPoint';
@@ -18,7 +19,8 @@ const isSaving = ref(false);
 const verifyTypeLabels: Record<PunchVerifyType, string> = {
   GPS: 'GPS 座標',
   WIFI: 'WiFi',
-  WFH: '居家辦公'
+  WFH: '居家辦公',
+  Bluetooth: '藍牙'
 };
 
 const isModalOpen = ref(false);
@@ -32,6 +34,7 @@ const form = reactive({
   radiusMeters: '100',
   wifiSsid: '',
   wifiBssidText: '', // 每行一個 BSSID
+  bluetoothServiceUuid: '',
   isActive: true
 });
 
@@ -51,7 +54,7 @@ const openCreate = () => {
   editingId.value = null;
   Object.assign(form, {
     id: '', name: '', verifyType: 'GPS', latitude: '', longitude: '', radiusMeters: '100',
-    wifiSsid: '', wifiBssidText: '', isActive: true
+    wifiSsid: '', wifiBssidText: '', bluetoothServiceUuid: '', isActive: true
   });
   isModalOpen.value = true;
 };
@@ -67,6 +70,7 @@ const openEdit = (p: PunchPoint) => {
     radiusMeters: String(Number(p.radius_meters)),
     wifiSsid: p.wifi_ssid ?? '',
     wifiBssidText: (p.wifi_bssid_list ?? []).join('\n'),
+    bluetoothServiceUuid: p.bluetooth_service_uuid ?? '',
     isActive: p.is_active
   });
   isModalOpen.value = true;
@@ -99,6 +103,13 @@ const handleSave = async () => {
   if (form.verifyType === 'WIFI' && (!form.wifiSsid.trim() || wifiBssidList.length === 0)) {
     return alert('WiFi 驗證需設定 SSID 與至少一個 BSSID');
   }
+  const bluetoothServiceUuid = form.bluetoothServiceUuid.trim();
+  if (form.verifyType === 'Bluetooth') {
+    if (!bluetoothServiceUuid) return alert('藍牙驗證需設定 Service UUID');
+    if (!BLUETOOTH_UUID_PATTERN.test(bluetoothServiceUuid)) {
+      return alert('藍牙 Service UUID 格式錯誤，需為 4 碼、8 碼或標準 UUID');
+    }
+  }
 
   const body = {
     name: form.name.trim(),
@@ -108,7 +119,9 @@ const handleSave = async () => {
     isActive: form.isActive,
     verifyType: form.verifyType,
     wifiSsid: form.wifiSsid.trim(),
-    wifiBssidList
+    wifiBssidList,
+    // 非藍牙類型時清除 Service UUID
+    bluetoothServiceUuid: form.verifyType === 'Bluetooth' ? bluetoothServiceUuid : ''
   };
 
   isSaving.value = true;
@@ -173,7 +186,7 @@ onMounted(fetchPunchPoints);
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">名稱</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">驗證方式</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">座標 / 半徑</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">WiFi</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">WiFi / 藍牙</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">狀態</th>
                 <th class="relative px-4 py-3"><span class="sr-only">操作</span></th>
               </tr>
@@ -192,7 +205,8 @@ onMounted(fetchPunchPoints);
                     <div>{{ p.wifi_ssid }}</div>
                     <div>{{ p.wifi_bssid_list?.length ?? 0 }} 組 BSSID</div>
                   </template>
-                  <template v-else>-</template>
+                  <div v-if="p.bluetooth_service_uuid" class="font-mono">藍牙 {{ p.bluetooth_service_uuid }}</div>
+                  <template v-if="!p.wifi_ssid && !p.bluetooth_service_uuid">-</template>
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm">
                   <span :class="['px-2 inline-flex text-xs leading-5 font-semibold rounded-full', p.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
@@ -265,6 +279,13 @@ onMounted(fetchPunchPoints);
               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"></textarea>
           </div>
         </template>
+
+        <div v-if="form.verifyType === 'Bluetooth'">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">藍牙 Service UUID</label>
+          <input v-model="form.bluetoothServiceUuid" type="text" placeholder="例如 180D 或 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm" />
+          <p class="text-xs text-gray-500 mt-1">App 會掃描廣播此 Service UUID 的藍牙基站，偵測到才允許打卡。</p>
+        </div>
 
         <label class="flex items-center text-sm text-gray-900">
           <input v-model="form.isActive" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded mr-2" />

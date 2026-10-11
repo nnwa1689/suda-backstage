@@ -59,11 +59,12 @@ export const deleteScheduleApi = (id: string) => {
   return api.delete(`/api/v1/schedule/${id}`);
 };
 
+// 月曆式班表的一列：一位員工一個月的班表
 export interface BatchScheduleRow {
   departmentId: string;
   employeeId: string;
-  shiftTemplateId: string;
-  isCyclic: string; // 是否循環班別：Y/N (後端驗證)
+  cyclicShiftTemplateId?: string; // 循環班別：建立整月固定排班 (fixed)
+  days: string[];                 // days[0] 為 1 日的班別代碼，空字串表示不排班 (daily，優先於循環班別)
 }
 
 export interface BatchSchedulePayload {
@@ -72,8 +73,7 @@ export interface BatchSchedulePayload {
 }
 
 /**
- * 批次匯入一個月的排班，任一筆驗證失敗則整批不匯入 (錯誤明細於 response.data.errors)
- * 循環班別寫入該月 1 號一筆 (fixed)；非循環班別該月每天各一筆 (daily)
+ * 批次匯入一個月的月曆式班表，任一筆驗證失敗則整批不匯入 (錯誤明細於 response.data.errors)
  */
 export const batchImportSchedulesApi = (payload: BatchSchedulePayload) => {
   return api.post<any, ApiResponse<{ rowCount: number; scheduleCount: number }>>('/api/v1/schedule/batch', payload);

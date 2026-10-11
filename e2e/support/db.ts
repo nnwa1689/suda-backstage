@@ -16,6 +16,7 @@ export const SEED = {
   emp1: { id: `${PREFIX}E1`, name: 'PW員工1' },
   emp2: { id: `${PREFIX}E2`, name: 'PW員工2' },
   template: { id: `${PREFIX}DAY`, name: 'PW日班' }, // 09:00 - 18:00
+  nightTemplate: { id: `${PREFIX}NGT`, name: 'PW夜班' }, // 22:00 - 隔日 06:00
   punchPoint: { id: `${PREFIX}PP`, name: 'PW據點' },
 };
 
@@ -69,8 +70,8 @@ export async function seedTestData() {
     );
     await db.query(
       `INSERT INTO shift_templates (id, name, is_cross_day, start_time_h, start_time_m, end_time_h, end_time_m, is_active)
-       VALUES ($1, $2, false, 9, 0, 18, 0, true)`,
-      [SEED.template.id, SEED.template.name],
+       VALUES ($1, $2, false, 9, 0, 18, 0, true), ($3, $4, true, 22, 0, 6, 0, true)`,
+      [SEED.template.id, SEED.template.name, SEED.nightTemplate.id, SEED.nightTemplate.name],
     );
     await db.query(
       `INSERT INTO punch_points (id, name, latitude, longitude, radius_meters, is_active, verify_type)

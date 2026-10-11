@@ -19,15 +19,25 @@ const isImporting = ref(false);
 
 const fileInput = ref<HTMLInputElement | null>(null);
 
-// 是否循環班別欄位顯示用 (實際驗證於後端)
-const cyclicLabel = (value: string) => {
-  const v = value.trim().toLowerCase();
-  if (['y', 'yes', '是', 'true', '1'].includes(v)) return '循環 (整月固定)';
-  if (['n', 'no', '否', 'false', '0'].includes(v)) return '非循環 (每日)';
-  return `無法辨識：${value}`;
-};
+// CSV 固定欄位：部門、員工編號、循環班別，其後為 1 ~ 31 日
+const FIXED_COLUMNS = 3;
+const MAX_DAYS = 31;
 
-const cyclicCount = computed(() => rows.value.filter(r => cyclicLabel(r.isCyclic).startsWith('循環')).length);
+// 所選月份的天數與每天的星期
+const monthDays = computed(() => {
+  const [y = 0, m = 0] = scheduleMonth.value.split('-').map(Number);
+  const count = new Date(y, m, 0).getDate();
+  return Array.from({ length: count }, (_, i) => {
+    const weekday = new Date(y, m - 1, i + 1).getDay();
+    return { day: i + 1, weekday: '日一二三四五六'[weekday], isWeekend: weekday === 0 || weekday === 6 };
+  });
+});
+
+const cyclicCount = computed(() => rows.value.filter(r => r.cyclicShiftTemplateId).length);
+const dailyCount = (r: BatchScheduleRow) => r.days.slice(0, monthDays.value.length).filter(Boolean).length;
+// 超出本月天數卻有填班別的日期 (後端會拒絕，預覽先標示)
+const overflowDays = (r: BatchScheduleRow) =>
+  r.days.map((code, i) => (code && i >= monthDays.value.length ? i + 1 : 0)).filter(Boolean);
 
 /**
  * 簡易 CSV 解析 (支援雙引號包覆與跳脫)
@@ -60,8 +70,8 @@ const parseCsv = (text: string): string[][] => {
 const decodeFile = async (file: File) => {
   const buffer = await file.arrayBuffer();
   const utf8 = new TextDecoder('utf-8').decode(buffer);
-  const text = utf8.includes('\uFFFD') ? new TextDecoder('big5').decode(buffer) : utf8;
-  return text.replace(/^\uFEFF/, '');
+  const text = utf8.includes('�') ? new TextDecoder('big5').decode(buffer) : utf8;
+  return text.replace(/^﻿/, '');
 };
 
 const handleFileChange = async (e: Event) => {
@@ -76,25 +86,37 @@ const handleFileChange = async (e: Event) => {
   try {
     const data = parseCsv(await decodeFile(file));
     // 第一列若為標題列 (含「部門」或「員工」等文字) 則略過
-    if (data[0] && /部門|員工|班別|department|employee|shift/i.test(data[0].join(','))) {
+    if (data[0] && /部門|員工|循環|department|employee/i.test(data[0].join(','))) {
       data.shift();
     }
-    const invalid = data.findIndex(r => r.length < 4);
-    if (invalid >= 0) {
-      parseError.value = `第 ${invalid + 1} 筆欄位數不足，需包含：部門、員工編號、班別代碼、是否循環班別。`;
+    const tooShort = data.findIndex(r => r.length < 2);
+    if (tooShort >= 0) {
+      parseError.value = `第 ${tooShort + 1} 筆欄位數不足，至少需包含：部門、員工編號。`;
       return;
     }
-    rows.value = data.map(([departmentId = '', employeeId = '', shiftTemplateId = '', isCyclic = '']) => ({
+    const tooLong = data.findIndex(r => r.slice(FIXED_COLUMNS + MAX_DAYS).some(v => v.trim()));
+    if (tooLong >= 0) {
+      parseError.value = `第 ${tooLong + 1} 筆超過 31 日的欄位，請確認欄位順序：部門、員工編號、循環班別、1～31 日。`;
+      return;
+    }
+    rows.value = data.map(([departmentId = '', employeeId = '', cyclic = '', ...days]) => ({
       departmentId: departmentId.trim(),
       employeeId: employeeId.trim(),
-      shiftTemplateId: shiftTemplateId.trim(),
-      isCyclic: isCyclic.trim()
+      cyclicShiftTemplateId: cyclic.trim() || undefined,
+      days: days.slice(0, MAX_DAYS).map(d => d.trim())
     }));
     if (rows.value.length === 0) parseError.value = '檔案中沒有資料。';
   } catch (error) {
     console.error('解析 CSV 失敗:', error);
     parseError.value = '無法解析檔案，請確認為 CSV 格式。';
   }
+};
+
+// 去除尾端空白欄位，減少傳輸量
+const trimTrailingEmpty = (days: string[]) => {
+  let end = days.length;
+  while (end > 0 && !days[end - 1]) end--;
+  return days.slice(0, end);
 };
 
 const resetFile = () => {
@@ -106,7 +128,7 @@ const resetFile = () => {
 const handleImport = async () => {
   if (rows.value.length === 0) return alert('請先選擇 CSV 檔案');
   if (!scheduleMonth.value) return alert('請選擇匯入月份');
-  if (!confirm(`確定匯入 ${scheduleMonth.value} 的班表共 ${rows.value.length} 筆資料嗎？`)) return;
+  if (!confirm(`確定匯入 ${scheduleMonth.value} 的班表，共 ${rows.value.length} 位員工嗎？`)) return;
 
   isImporting.value = true;
   resultMessage.value = '';
@@ -114,7 +136,7 @@ const handleImport = async () => {
   try {
     const res = await batchImportSchedulesApi({
       month: scheduleMonth.value,
-      rows: rows.value
+      rows: rows.value.map(r => ({ ...r, days: trimTrailingEmpty(r.days) }))
     });
     if (res.success) {
       isSuccess.value = true;
@@ -130,26 +152,30 @@ const handleImport = async () => {
   }
 };
 
+// 依所選月份產生範本：一位循環班別 (週末另排)、一位逐日排班 (週末休假)
 const downloadTemplate = () => {
-  const content = '\uFEFF部門,員工編號,班別代碼,是否循環班別\nD001,E0001,DAY,Y\nD001,E0002,NIGHT,N\n';
+  const days = monthDays.value;
+  const header = ['部門', '員工編號', '循環班別', ...days.map(d => String(d.day))];
+  const cyclicRow = ['D001', 'E0001', 'DAY', ...days.map(() => '')];
+  const dailyRow = ['D001', 'E0002', '', ...days.map((d, i) => (d.isWeekend ? '' : i % 2 === 0 ? 'DAY' : 'NIGHT'))];
+  const content = '﻿' + [header, cyclicRow, dailyRow].map(r => r.join(',')).join('\n') + '\n';
   const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = '批次排班範本.csv';
+  a.download = `批次排班範本_${scheduleMonth.value}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 };
-
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto p-6">
-    <div class="mb-8 flex justify-between items-end">
+  <div class="max-w-7xl mx-auto p-6">
+    <div class="mb-8 flex justify-between items-end gap-4">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">批次排班</h1>
-        <p class="text-gray-500 mt-1">每次匯入一個月的班表。循環班別套用整月 (fixed)，非循環班別則於該月每天各建立一筆 (daily)。任一筆資料不存在或衝突時，整批不會匯入。</p>
+        <p class="text-gray-500 mt-1">以月曆式班表匯入一個月的排班，每位員工一列。任一筆資料不存在或衝突時，整批不會匯入。</p>
       </div>
-      <button @click="downloadTemplate" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+      <button @click="downloadTemplate" class="shrink-0 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center gap-2">
         <span class="material-icons-round text-base">download</span>
         下載範本
       </button>
@@ -165,7 +191,11 @@ const downloadTemplate = () => {
         <label class="block text-sm font-semibold text-gray-700 mb-2">CSV 檔案</label>
         <input ref="fileInput" type="file" accept=".csv,text/csv" @change="handleFileChange"
           class="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-        <p class="text-xs text-gray-500 mt-2">欄位順序：部門 (代碼或名稱)、員工編號、班別代碼、是否循環班別 (Y/N)。第一列可為標題列。</p>
+        <ul class="text-xs text-gray-500 mt-2 space-y-1 list-disc list-inside">
+          <li>欄位順序：部門 (代碼或名稱)、員工編號、循環班別、1 ～ 31 日。第一列可為標題列。</li>
+          <li>循環班別：填寫班別代碼則該員工整月套用此班別。</li>
+          <li>1 ～ 31 日：填寫當天的班別代碼；有填寫的日子優先於循環班別。未設定循環班別時，空白代表當天不排班。</li>
+        </ul>
         <p v-if="parseError" class="text-sm text-red-600 mt-2">{{ parseError }}</p>
       </div>
 
@@ -177,29 +207,44 @@ const downloadTemplate = () => {
         </ul>
       </div>
 
-      <!-- 預覽 -->
+      <!-- 預覽 (月曆式) -->
       <div v-if="rows.length > 0">
-        <div class="flex justify-between items-center mb-3">
-          <h2 class="text-sm font-semibold text-gray-700">預覽：{{ fileName }} (共 {{ rows.length }} 筆，循環 {{ cyclicCount }} 筆)</h2>
-        </div>
-        <div class="overflow-x-auto max-h-96 border border-gray-100 rounded-lg">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50 sticky top-0">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">
+          預覽：{{ fileName }} (共 {{ rows.length }} 位員工，循環班別 {{ cyclicCount }} 位)
+        </h2>
+        <div class="overflow-auto max-h-[28rem] border border-gray-100 rounded-lg">
+          <table class="min-w-full text-xs">
+            <thead class="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">筆</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">部門</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">員工編號</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">班別代碼</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500">是否循環班別</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500 sticky left-0 bg-gray-50">筆</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">部門</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">員工編號</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">循環班別</th>
+                <th v-for="d in monthDays" :key="d.day"
+                  :class="['px-2 py-2 text-center font-medium whitespace-nowrap', d.isWeekend ? 'text-red-400' : 'text-gray-500']">
+                  {{ d.day }}<br />{{ d.weekday }}
+                </th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">逐日天數</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-for="(r, i) in rows" :key="i">
-                <td class="px-4 py-2 text-sm text-gray-400">{{ i + 1 }}</td>
-                <td class="px-4 py-2 text-sm text-gray-900">{{ r.departmentId }}</td>
-                <td class="px-4 py-2 text-sm text-gray-900">{{ r.employeeId }}</td>
-                <td class="px-4 py-2 text-sm text-gray-900">{{ r.shiftTemplateId }}</td>
-                <td :class="['px-4 py-2 text-sm', cyclicLabel(r.isCyclic).startsWith('無法') ? 'text-red-600' : 'text-gray-900']">{{ cyclicLabel(r.isCyclic) }}</td>
+                <td class="px-3 py-2 text-gray-400 sticky left-0 bg-white">{{ i + 1 }}</td>
+                <td class="px-3 py-2 text-gray-900 whitespace-nowrap">{{ r.departmentId }}</td>
+                <td class="px-3 py-2 text-gray-900 whitespace-nowrap">{{ r.employeeId }}</td>
+                <td class="px-3 py-2 whitespace-nowrap">
+                  <span v-if="r.cyclicShiftTemplateId" class="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">{{ r.cyclicShiftTemplateId }}</span>
+                  <span v-else class="text-gray-300">-</span>
+                </td>
+                <td v-for="d in monthDays" :key="d.day" :class="['px-2 py-2 text-center whitespace-nowrap', d.isWeekend ? 'bg-red-50/40' : '']">
+                  <span v-if="r.days[d.day - 1]" class="text-gray-900 font-medium">{{ r.days[d.day - 1] }}</span>
+                  <span v-else-if="r.cyclicShiftTemplateId" class="text-purple-300">{{ r.cyclicShiftTemplateId }}</span>
+                  <span v-else class="text-gray-300">·</span>
+                </td>
+                <td class="px-3 py-2 whitespace-nowrap">
+                  {{ dailyCount(r) }} 天
+                  <span v-if="overflowDays(r).length" class="text-red-600 ml-1">({{ overflowDays(r).join('、') }} 日超出本月)</span>
+                </td>
               </tr>
             </tbody>
           </table>
