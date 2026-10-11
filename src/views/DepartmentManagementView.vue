@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { getDepartmentsPaginatedApi, type Department, type GetDepartmentsPaginatedResponse, type PaginationMeta } from '../api/department';
+import { getDepartmentsPaginatedApi, type Department } from '../api/department';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();

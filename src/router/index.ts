@@ -60,7 +60,36 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('../views/DepartmentEditView.vue'),
         meta: { requiresAuth: true }
       },
-      // ... 其他如排班、打卡的路由
+      {
+        path: '/templates',
+        name: 'ShiftTemplate',
+        component: () => import('../views/ShiftTemplateView.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: '/schedules',
+        name: 'Schedule',
+        component: () => import('../views/ScheduleView.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: '/batchschedules',
+        name: 'BatchSchedule',
+        component: () => import('../views/BatchScheduleView.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: '/punchs',
+        name: 'PunchRecord',
+        component: () => import('../views/PunchRecordView.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: '/locations',
+        name: 'PunchPoint',
+        component: () => import('../views/PunchPointView.vue'),
+        meta: { requiresAuth: true }
+      },
     ]
   }
 ]
@@ -70,7 +99,7 @@ export const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token');
   
   // 如果要去的地方需要權限，且沒有 Token

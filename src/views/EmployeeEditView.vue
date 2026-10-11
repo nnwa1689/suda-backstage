@@ -2,15 +2,14 @@
 import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getEmployeeByIdApi, updateEmployeeApi, unbindDeviceApi, type Employee } from '../api/employee';
-import { getActiveDepartmentsApi, type Department } from '../api/department'; // Import from department.ts
+import { getActiveDepartmentsApi } from '../api/department';
 
 const route = useRoute();
 const router = useRouter();
 
-const employeeId = ref<string | string[]>(route.params.id);
+const employeeId = ref(String(route.params.id ?? ''));
 const employee = ref<Employee | null>(null);
-const originalEmployee = ref<Employee | null>(null); // 用於取消時還原
-const departments = ref<Department[]>([]);
+const departments = ref<{ id: string; name: string }[]>([]);
 
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -26,10 +25,9 @@ const isActive = ref(true);
 const fetchEmployee = async () => {
   isLoading.value = true;
   try {
-    const res = await getEmployeeByIdApi(employeeId.value as string);
+    const res = await getEmployeeByIdApi(employeeId.value);
     if (res.success && res.data) {
       employee.value = res.data;
-      originalEmployee.value = { ...res.data }; // 儲存原始資料
       employeeName.value = res.data.name;
       selectedDepartmentId.value = res.data.department_id;
       isActive.value = res.data.is_active;
@@ -79,11 +77,10 @@ const handleUpdateEmployee = async () => {
       arrival: employee.value.arrival
     };
 
-    const res = await updateEmployeeApi(employeeId.value as string, payload);
+    const res = await updateEmployeeApi(employeeId.value, payload);
     if (res.success && res.data) {
       alert('員工資料更新成功！');
       employee.value = res.data;
-      originalEmployee.value = { ...res.data }; // 使用後端回傳的完整資料更新原始狀態
     } else {
       alert('更新失敗，請稍後再試。');
     }
@@ -133,15 +130,6 @@ const handleResetPunchDevice = async () => {
   }
 };
 
-// 取消編輯，還原資料
-const handleCancel = () => {
-  if (originalEmployee.value) {
-    employeeName.value = originalEmployee.value.name;
-    selectedDepartmentId.value = originalEmployee.value.department_id;
-    isActive.value = originalEmployee.value.is_active;
-  }
-};
-
 onMounted(() => {
   fetchEmployee();
   fetchDepartments();
@@ -149,7 +137,7 @@ onMounted(() => {
 
 // 監聽路由參數變化，如果 ID 改變則重新載入資料 (例如從一個員工編輯頁面跳到另一個)
 watch(() => route.params.id, (newId) => {
-  if (newId && newId !== employeeId.value) {
+  if (typeof newId === 'string' && newId && newId !== employeeId.value) {
     employeeId.value = newId;
     fetchEmployee();
   }

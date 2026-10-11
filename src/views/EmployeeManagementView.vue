@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { getEmployeesApi, type Employee, type PaginationMeta } from '../api/employee';
+import { getEmployeesApi, type Employee } from '../api/employee';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();

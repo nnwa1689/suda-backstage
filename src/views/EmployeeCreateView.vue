@@ -3,11 +3,11 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { createEmployeeApi } from '../api/employee';
 import { registerUserAccountApi } from '../api/user'; // 引入新的 user API
-import { getActiveDepartmentsApi, type Department } from '../api/department'; 
+import { getActiveDepartmentsApi } from '../api/department';
 
 const router = useRouter();
 
-const departments = ref<Department[]>([]);
+const departments = ref<{ id: string; name: string }[]>([]);
 const isLoading = ref(false);
 const isSaving = ref(false);
 
@@ -16,7 +16,7 @@ const employeeId = ref('');
 const employeeName = ref('');
 const selectedDepartmentId = ref('');
 const password = ref(''); // 新增密碼欄位
-const arrivalDate = ref(new Date().toISOString().split('T')[0]); // 預設今日
+const arrivalDate = ref(new Date().toISOString().slice(0, 10)); // 預設今日
 const isActive = ref(true);
 
 // 取得部門選單

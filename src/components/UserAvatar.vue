@@ -38,14 +38,15 @@ const initials = computed(() => {
 
 // 邏輯：取得顏色 Class
 const avatarClass = computed(() => {
-  if (!props.name) return `${avatarColors[0].bg} ${avatarColors[0].text}`;
+  const fallback = avatarColors[0]!;
+  if (!props.name) return `${fallback.bg} ${fallback.text}`;
   
   let hash = 0;
   for (let i = 0; i < props.name.length; i++) {
     hash = props.name.charCodeAt(i) + ((hash << 5) - hash);
   }
   
-  const c = avatarColors[Math.abs(hash) % avatarColors.length];
+  const c = avatarColors[Math.abs(hash) % avatarColors.length] ?? fallback;
   return `${c.bg} ${c.text} ${c.darkBg} ${c.darkText}`;
 });
 </script>

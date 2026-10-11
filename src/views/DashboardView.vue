@@ -169,7 +169,7 @@ onMounted(() => {
                     <UserAvatar :name="record.employee.name" size="md" />
                     {{ record.employee.name }}
                   </td>
-                  <td class="px-6 py-4 text-gray-500 dark:text-gray-400">{{ record.employee.department.name }}</td>
+                  <td class="px-6 py-4 text-gray-500 dark:text-gray-400">{{ record.employee.department?.name ?? '-' }}</td>
                   <td class="px-6 py-4 text-gray-500 dark:text-gray-400">{{ formatTime(record.punch_time) }}</td>
                   <td class="px-6 py-4">
                     <span :class="record.punch_type === 'CHECK_IN' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'" 

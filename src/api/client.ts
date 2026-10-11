@@ -45,3 +45,14 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+/**
+ * 取出 API 錯誤訊息 (ValidationPipe 的 message 可能為陣列)
+ * @param error axios 錯誤
+ * @param fallback 預設訊息
+ */
+export const getErrorMessage = (error: any, fallback = '操作失敗，請稍後再試'): string => {
+  const message = error?.response?.data?.message;
+  if (Array.isArray(message)) return message.join('\n');
+  return message || fallback;
+};

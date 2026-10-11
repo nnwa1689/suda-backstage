@@ -24,7 +24,7 @@ const updateTime = (serverDate: Date) => {
   const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
   
   displayDate.value = `${serverDate.getFullYear()}年 ${serverDate.getMonth() + 1}月 ${serverDate.getDate()}日`;
-  displayDay.value = days[serverDate.getDay()];
+  displayDay.value = days[serverDate.getDay()] ?? '';
   displayTime.value = serverDate.toLocaleTimeString('zh-TW', { 
     hour12: true, 
     hour: '2-digit', 
